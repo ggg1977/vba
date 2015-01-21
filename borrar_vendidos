@@ -1,0 +1,417 @@
+Rem Attribute VBA_ModuleType=VBAModule
+Option VBASupport 1
+Option Explicit
+
+
+Public Sub borrar_vendidos()
+  '------------------------------------------------------------------------
+  ' DEFINICION DE VARIABLES
+  '------------------------------------------------------------------------
+  Dim i As Integer
+  'Dim paginaBase As Worksheet
+  Dim nom_libroBase As String
+  Dim num_paginaBase As Integer
+  'Dim paginaActualTxt As String
+  Dim doc_col As Integer
+  Dim nom_col As Integer
+  Dim colTxt As String
+  Dim textMesg As String
+  Dim title As String
+  Dim cuentaRegistros As Integer
+  Dim cuentaRegistrosTxt As String
+  Dim dni_a_buscar As Long
+  Dim rango As String
+  Dim datosCliente As String
+  Dim confirmacion As VbMsgBoxResult
+  Dim textoPregunta As String
+  Dim file_vendidos As FileDialog
+  Dim qtb As QueryTable
+  Dim dni_tbl As Worksheet
+  Dim celdaActualCol As Integer
+  Dim celdaActualFila As Integer
+  Dim eliminados_log As String
+  Dim errores_log As String
+  'Dim hojaCopiados As Worksheet
+  Dim dni_workbook As String
+  Dim libroDeBase As String
+  Dim dni_path As String
+  Dim sheet1 As Worksheet
+  Dim hojaDNI As Worksheet
+  Dim dni_a_buscar_txt As String
+  Dim encontrado As Range
+  Dim nombreHoja As String
+  Dim cuentaFilas As Integer
+  Dim cuentaFilasTxt As String
+  Dim finDeRegistros As Boolean
+  Dim filasVacias As Integer
+  Dim filasVaciasConsec As Integer
+  Dim filasVaciasTxt As String
+  Dim eliminado As Boolean
+  Dim celdaRepetida As Range
+  Dim valorBuscado As Long
+  Dim cRepetidas As Range
+  Dim cVacias As Range
+  'Dim cVaciasConsec As Range
+  Dim Filas As Integer
+  Dim celdaDestino As Range
+  Dim dniVendido As Range
+  Dim stsusMessage As String
+  Dim StatMsg As Variant
+  Dim statusMessage As String
+  Dim yesToAll As Boolean
+  Dim respuestaYesToAll As VbMsgBoxResult
+  Dim vecesPreguntado As Integer
+  Dim cd As Integer ' cotador de celdaDestino (backup de registros)
+  Dim respuestaAError As VbMsgBoxResult
+  Dim valor_de_celda As String
+  Dim col_doc_nro_encontrada As Boolean
+  Dim col_nombre_encontrada As Boolean
+  Dim limitePreguntado As Integer
+  '------------------------------------------------------------------------
+  ' CHEQUEA LA EXISTENCIA DE LA COLUMNA LLAMADA doc_nro
+  '------------------------------------------------------------------------
+  num_paginaBase = ActiveWorkbook.ActiveSheet.Index
+  libroDeBase = ActiveWorkbook.Name
+  
+  'paginaBase = Worksheets(num_paginaBase)
+  celdaActualCol = ActiveCell.Column
+  celdaActualFila = ActiveCell.Row
+  'Set sheet1 = Worksheets(paginaBase)
+  'paginaActualTxt = paginaActual
+  Application.ScreenUpdating = False
+    
+  Range("A1").Select
+  While ActiveCell.Value <> ""
+    ActiveCell.Offset(0, 1).Select
+    valor_de_celda = ActiveCell.Value
+    If col_doc_nro_encontrada = False And InStr(1, valor_de_celda, "doc_nro") Then
+      doc_col = ActiveCell.Column
+      col_doc_nro_encontrada = True
+    End If
+    If InStr(1, valor_de_celda, "nombre") Then
+      nom_col = ActiveCell.Column
+      col_nombre_encontrada = True
+    End If
+    If col_doc_nro_encontrada = True And col_nombre_encontrada = True Then GoTo Columnas_encontradas
+  Wend
+  If Not doc_col > 1 Then
+    MsgBox "No se ha encontrado columna doc_nro"
+    GoTo EndLine
+  End If
+Columnas_encontradas:
+  If BuscarHoja("dni") = False Then
+    'ActiveWorkbook.Sheets.Add(After:=Worksheets(num_paginaBase)).Name = "dni"
+    Workbooks(libroDeBase).Sheets.Add(After:=Worksheets(num_paginaBase)).Name = "dni"
+  Else
+    Workbooks(libroDeBase).Sheets("dni").Cells.Clear
+  End If
+  Workbooks(libroDeBase).Sheets("dni").Activate
+  Range("C1").Value = "Repetidas"
+  Range("D1").Value = "Vacias"
+  
+  '------------------------------------------------------------------------
+  ' ABRE ARCHIVO QUE CONTIENE LOS NROS DE DNI DE VENTAS
+  '------------------------------------------------------------------------
+  
+  'Application.ScreenUpdating = False
+  dni_path = Application.GetOpenFilename
+  If Not dni_path = "Falso" Then
+    Workbooks.Open Filename:=dni_path
+  Else
+    GoTo EndLine
+  End If
+  dni_workbook = ActiveWorkbook.Name
+ 
+  '------------------------------------------------------------------------
+  ' COPIA EL CONTENIDO DEL DOCUMENTO SELECCIONADO A LA PÁGINA 2
+  '------------------------------------------------------------------------
+  
+  cuentaRegistros = contadorDeFilas(1)
+  If cuentaRegistros = 0 Then
+    MsgBox "No se encontraron resultados"
+    GoTo EndLine
+  End If
+  
+  cuentaRegistrosTxt = cuentaRegistros
+  cuentaFilas = cuentaRegistros
+  cuentaFilasTxt = cuentaFilas
+  rango = "A1:A" + cuentaFilasTxt
+  Range(rango).Select
+  Selection.Copy
+  
+  Workbooks(libroDeBase).Activate
+  Worksheets("dni").Activate
+  Range("A1").Select
+  ActiveSheet.Paste
+  
+  '------------------------------------------------------------------------
+  ' CIERRA ARCHIVO
+  '------------------------------------------------------------------------
+  Application.DisplayAlerts = False
+  Workbooks(dni_workbook).Close SaveChanges:=False
+  
+  '------------------------------------------------------------------------
+  ' REVISA LA EXISTENCIA DE ELEMENTOS DUPLICADOS Y FILAS VACIAS Y LOS ELIMINA
+  '------------------------------------------------------------------------
+
+Range("A1").Select
+For i = 1 To cuentaFilas
+    eliminado = False
+    If ActiveCell.Value <> "" Then
+      ActiveCell.Value = Replace(ActiveCell.Value, " ", "")
+      valorBuscado = ActiveCell.Value
+      If WorksheetFunction.CountIf(Range("A1:A" & cuentaRegistros), valorBuscado) > 1 Then
+        ActiveCell.Delete
+        eliminado = True
+        Range("C2").Value = Range("C2").Value + 1
+      End If
+    Else
+      ActiveCell.Delete
+      eliminado = True
+      Range("D2").Value = Range("D2").Value + 1
+    End If
+    If eliminado = False Then ActiveCell.Offset(1, 0).Select
+
+    'textMesg = textMesg + vbNewLine + "Registro encontrado Nº" + ActiveCell.Value
+ Next i
+  
+  
+  '------------------------------------------------------------------------
+  ' REVISA LA EXISTENCIA DE ELEMENTOS EN BASE DE DATOS
+  '------------------------------------------------------------------------
+  Application.StatusBar = "Trabajando, sea paciente..."
+
+  
+  If Filas = False Then
+    Workbooks(libroDeBase).Sheets(num_paginaBase).Activate
+    Filas = contadorDeFilas(doc_col)
+  End If
+  
+  For i = 1 To cuentaRegistros
+    If Worksheets("dni").Range("E2").Value > 0 Then
+      statusMessage = i & " de " & cuentaRegistros & " registros procesados, " & Worksheets("dni").Range("E2").Value & " Eliminados."
+    Else
+      statusMessage = i & " de " & cuentaRegistros & " registros procesados." & Worksheets("dni").Range("E2").Value & " Eliminados."
+    End If
+    Application.StatusBar = statusMessage
+    'StatMsg = ProgressBar.update_progbar(i / cuentaRegistros, statusMessage)
+    'If ProgressBar.CancelButton.Cancel Then GoTo EndLine
+    If Worksheets("dni").Cells(i, 1).Font.Color = RGB(255, 0, 0) Then GoTo Dont_Delete
+    
+    Set dniVendido = Worksheets("dni").Cells(i, 1)
+    dni_a_buscar = dniVendido.Value
+    Set encontrado = Nothing
+    'On Error GoTo usarFuncionBuscarCliente
+    On Error GoTo ErrorHandler
+    Set encontrado = Worksheets(num_paginaBase).Range(Worksheets(num_paginaBase).Cells(2, doc_col), Worksheets(num_paginaBase).Cells(Filas, doc_col)).Find(What:=dni_a_buscar)
+    
+    'GoTo noUsarFuncionBuscarCliente
+usarFuncionBuscarCliente:
+    'If encontrado Is Nothing Then
+      'Set encontrado = buscarCliente(dni_a_buscar, 2, doc_col, num_paginaBase)
+    'End If
+noUsarFuncionBuscarCliente:
+    
+    If Not encontrado Is Nothing Then
+      If respuestaYesToAll = False Then
+        If vecesPreguntado > 1 Then
+          respuestaYesToAll = MsgBox("¿Desea Eliminar Todos los siguientes?" & vbNewLine & "(una vez iniciado no se puede cancelar)", vbYesNo, "¿Eliminar todos?")
+          If respuestaYesToAll = vbYes Then yesToAll = True Else limitePreguntado = 10
+        End If
+      End If
+
+      If respuestaYesToAll = vbNo Then
+        If vecesPreguntado > limitePreguntado Then
+          vecesPreguntado = 0
+          respuestaYesToAll = MsgBox("Hay muchos repetidos por eso vuelvo a preguntar" & vbNewLine & "¿Desea Eliminar Todos los siguientes?" & vbNewLine & "(una vez iniciado no se puede cancelar)", vbYesNo, "¿Eliminar todos?")
+          If respuestaYesToAll = vbYes Then yesToAll = True
+        End If
+      End If
+      vecesPreguntado = vecesPreguntado + 1
+      Worksheets(num_paginaBase).Activate
+      
+      encontrado.Select
+      If col_nombre_encontrada Then
+        datosCliente = Cells(encontrado.Row, nom_col)
+      Else
+        datosCliente = Cells(encontrado.Row, 1).Value + " " + Cells(encontrado.Row, 2).Value
+      End If
+      textoPregunta = "desea eliminar a: " + datosCliente + "?"
+      If yesToAll = False Then confirmacion = MsgBox(textoPregunta, vbYesNoCancel, "Confirma Eliminación")
+      If confirmacion = vbCancel Then
+        GoTo EndLine
+      ElseIf confirmacion = vbNo Then
+        GoTo Dont_Delete
+      Else
+        '------------------------------------------------------------------------
+        ' CREA HOJA DE BACKUP
+        '------------------------------------------------------------------------
+        If Workbooks(libroDeBase).Sheets("vendidos") Is Nothing Then
+        
+          'If BuscarHoja("vendidos") = False Then
+          
+            Workbooks(libroDeBase).Sheets.Add(After:=Worksheets("dni")).Name = "vendidos"
+            Workbooks(libroDeBase).Sheets(num_paginaBase).Activate
+            Range("A1:K1").Select
+            Selection.Copy
+            Workbooks(libroDeBase).Sheets("vendidos").Activate
+            ActiveSheet.Paste
+          'End If
+        End If
+        '------------------------------------------------------------------------
+        ' COPIA LA INFORMACION QUE SE VA A BORRAR
+        '------------------------------------------------------------------------
+        
+        'Worksheets("vendidos").Activate
+        If celdaDestino Is Nothing Then
+          cd = 2
+          'Range("A2").Select
+        
+          While Workbooks(libroDeBase).Sheets("vendidos").Cells(cd, 1).Value <> ""
+            cd = cd + 1
+          Wend
+          Set celdaDestino = Worksheets("vendidos").Cells(cd, 1)
+        Else
+          'Set celdaDestino = Cells(celdaDestino.Row + 1, 1)
+          Set celdaDestino = celdaDestino.Offset(1, 0)
+        End If
+        
+        Workbooks(libroDeBase).Sheets(num_paginaBase).Activate
+        Range(Cells(encontrado.Row, 1), Cells(encontrado.Row, 11)).Select
+        Selection.Copy
+        
+        Workbooks(libroDeBase).Sheets("vendidos").Activate
+        celdaDestino.Select
+        ActiveSheet.Paste
+        '------------------------------------------------------------------------
+        ' ELIMINA LA INFORMACION
+        '------------------------------------------------------------------------
+        Workbooks(libroDeBase).Sheets(num_paginaBase).Rows(encontrado.Row).EntireRow.Delete
+        Workbooks(libroDeBase).Sheets("dni").Activate
+        dniVendido.Font.Color = RGB(255, 0, 0)
+        eliminados_log = eliminados_log + vbNewLine + datosCliente
+        
+        If Workbooks(libroDeBase).Sheets("dni").Range("E1").Value = False Then
+          Workbooks(libroDeBase).Sheets("dni").Range("E1").Value = "Eliminados"
+          Workbooks(libroDeBase).Sheets("dni").Range("E2").Value = 1
+        Else
+          Workbooks(libroDeBase).Sheets("dni").Range("E2").Value = Worksheets("dni").Range("E2").Value + 1
+        End If
+      End If
+    Else
+      dni_a_buscar_txt = dni_a_buscar
+      errores_log = errores_log + vbNewLine + dni_a_buscar_txt + " No encontrado"
+    End If
+    
+Dont_Delete:
+  Next i
+  Application.StatusBar = False
+  'Unload ProgressBar
+  
+  MsgBox "Eliminados: " + eliminados_log + vbNewLine + "Errores: " + errores_log
+  GoTo EndLine
+  
+ErrorHandler:
+  If Err.Number = 1004 Then
+    Err.Clear
+    GoTo usarFuncionBuscarCliente
+  End If
+  respuestaAError = MsgBox("Ha ocurrido un error: " & Err.Description & vbNewLine & Err.Source, vbAbortRetryIgnore, "Error: " & Err.Number)
+  If respuestaAError = vbRetry Then
+    Err.Clear
+    Resume usarFuncionBuscarCliente
+  End If
+  If respuestaAError = vbIgnore Then
+    Err.Clear
+    Resume
+  End If
+  If respuestaAError = vbCancel Then
+    Err.Clear
+    Resume EndLine
+  End If
+  
+  
+EndLine:
+  Application.StatusBar = False
+  'Unload ProgressBar
+  MsgBox "Programa terminado"
+  Application.ScreenUpdating = True
+  
+  
+End Sub
+
+Function BuscarHoja(nombreHoja As String) As Boolean
+Dim i As Integer
+  For i = 1 To Worksheets.Count
+    If ActiveWorkbook.Sheets(i).Name = nombreHoja Then
+      BuscarHoja = True
+      Exit Function
+    End If
+  Next
+  
+  BuscarHoja = False
+End Function
+
+Function buscarCliente(dni_num As Long, inicio_de_busqueda As Integer, columna_de_busqueda As Integer, paginaBusqueda As Integer) As Range
+  
+  Dim fila_resultado As Integer
+  
+  Dim fin_de_registro As Boolean
+  Dim fila_actual As Integer
+  Dim celda_actual As Range
+  Dim filasVaciasConsec As Integer
+  
+  Application.ScreenUpdating = False
+  
+  fin_de_registro = False
+  fila_actual = inicio_de_busqueda
+  ActiveWorkbook.Sheets(paginaBusqueda).Activate
+  
+  ActiveSheet.Cells(inicio_de_busqueda, columna_de_busqueda).Select
+  While Not fin_de_registro = True
+    If ActiveCell.Value <> "" Then
+      If dni_num = ActiveCell.Value Then
+      'If InStr(1, ActiveCell.Value, dni_num, 1) Then
+        Set buscarCliente = ActiveCell
+        Exit Function
+      End If
+      filasVaciasConsec = 0
+    Else
+      filasVaciasConsec = filasVaciasConsec + 1
+    End If
+    If filasVaciasConsec > 9 Then fin_de_registro = True
+    
+    ActiveCell.Offset(1, 0).Select
+  Wend
+    
+
+End Function
+
+Function contadorDeFilas(col As Integer)
+  Dim filasVacias As Integer
+  Dim filasVaciasConsec As Integer
+  Dim cuentaRegistros As Integer
+  Dim Filas As Integer
+  Dim fin_de_registro As Boolean
+  Dim i As Integer
+  
+  i = 1
+  
+  Application.ScreenUpdating = False
+  
+  'ActiveSheet.Cells(1, col).Select
+  While Not fin_de_registro = True
+    'If ActiveCell.Value <> "" Then
+    If Cells(i, col).Value <> "" Then
+      cuentaRegistros = cuentaRegistros + 1
+      filasVaciasConsec = 0
+    Else
+      filasVacias = filasVacias + 1
+      filasVaciasConsec = filasVaciasConsec + 1
+    End If
+    If filasVaciasConsec > 9 Then fin_de_registro = True
+    'ActiveCell.Offset(1, 0).Select
+    i = i + 1
+  Wend
+  contadorDeFilas = cuentaRegistros + filasVacias - filasVaciasConsec
+End Function
